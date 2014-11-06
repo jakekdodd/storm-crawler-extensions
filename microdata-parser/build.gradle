@@ -4,7 +4,7 @@ apply plugin: 'maven-publish'
 
 sourceCompatibility = '1.7'
 group = 'com.shopstyle.storm-crawler-extensions'
-version = '0.1'
+version = '0.2'
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ configurations {
 
 dependencies {
     provided (
-        [group:'com.digitalpebble',          name:'storm-crawler',          version:'latest.release']
+        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.3']
     )
 
     compile (
@@ -52,6 +52,28 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+            // By default, the Gradle plugin publishes all artifacts
+            // with scope='runtime'... In other words, we have to edit
+            // the generated POM by hand pretty much...
+            pom.withXml { xml ->
+                xml.asNode().dependencies.dependency.each{
+                   def groupId = it.groupId.get(0).text();
+                   println groupId;
+                   switch (groupId) {
+                       case 'com.digitalpebble':
+                           it.scope.get(0).value = 'provided';
+                           break;
+                       case 'org.apache.any23':
+                           it.scope.get(0).value = 'compile';
+                           def exclusion = it.appendNode('exclusions').appendNode('exclusion');
+                           exclusion.appendNode('groupId').value = '*'
+                           exclusion.appendNode('artifactId').value = '*'
+                           break;
+                       default:
+                           it.scope.get(0).value = 'compile';
+                   }
+                }
+            }
         }
     }
     repositories {
