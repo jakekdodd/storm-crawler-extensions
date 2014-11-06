@@ -1,0 +1,67 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+
+sourceCompatibility = '1.7'
+group = 'com.shopstyle.storm-crawler-extensions'
+version = '0.1'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    provided {
+        description = 'Dependencies solely needed at compile time'
+        transitive = false
+    }
+
+    compile {
+        extendsFrom provided
+    }
+}
+
+dependencies {
+    provided (
+        [group:'com.digitalpebble',          name:'storm-crawler',          version:'latest.release']
+    )
+
+    compile (
+        [group:'org.apache.any23',           name:'apache-any23-core',      version:'1.1',          transitive:false],
+        [group:'org.apache.commons',         name:'commons-lang3',          version:'3.3.2'],
+        [group:'org.slf4j',                  name:'slf4j-api',              version:'1.7.7']
+
+    )
+
+    testCompile (
+        [group:'commons-io',                 name:'commons-io',             version:'2.4'],
+        [group:'junit',                      name:'junit',                  version:'4.11'],
+        [group:'net.sourceforge.nekohtml',   name:'nekohtml',               version:'1.9.19'],
+        [group:'org.mockito',                name:'mockito-all',            version:'1.9.5']
+    )
+}
+
+eclipse {
+    classpath {
+        // Add the 'provided' (aka compile-only) configuration into the Eclipse classpath
+        plusConfigurations += [ configurations.provided ]
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username "publisher"
+                password System.properties['pub.pwd']
+            }
+            // change to point to your repo, e.g. http://my.org/repo
+            url "https://maven.sugarops.com/repository/" + System.properties['pub.repoName']
+        }
+    }
+}

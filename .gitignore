@@ -3,3 +3,10 @@ build/
 
 # Ignore Gradle GUI config
 gradle-app.setting
+
+# Ignore Eclipse artifacts
+.metadata
+*/.classpath
+*/.project
+*/.settings
+
