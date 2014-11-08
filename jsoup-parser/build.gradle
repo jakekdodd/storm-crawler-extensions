@@ -1,0 +1,79 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+
+sourceCompatibility = '1.7'
+group = 'com.shopstyle.storm-crawler-extensions'
+version = '0.1'
+
+repositories {
+    mavenCentral()
+    maven {
+        url "http://clojars.org/repo"
+    }
+}
+
+configurations {
+    provided {
+        description = 'Dependencies solely needed at compile time'
+        transitive = false
+    }
+
+    compile {
+        extendsFrom provided
+    }
+}
+
+dependencies {
+    provided (
+        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.3'],
+        [group:'org.apache.storm',           name:'storm-core',             version:'0.9.2-incubating']
+    )
+
+    compile (
+        [group:'org.jsoup',                  name:'jsoup',                  version:'1.8.1'],
+        [group:'org.slf4j',                  name:'slf4j-api',              version:'1.7.7']
+
+    )
+}
+
+eclipse {
+    classpath {
+        // Add the 'provided' (aka compile-only) configuration into the Eclipse classpath
+        plusConfigurations += [ configurations.provided ]
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            // By default, the Gradle plugin publishes all artifacts
+            // with scope='runtime'... In other words, we have to edit
+            // the generated POM by hand pretty much...
+            pom.withXml { xml ->
+                xml.asNode().dependencies.dependency.each{
+                   def groupId = it.groupId.get(0).text();
+                   switch (groupId) {
+                       case 'com.digitalpebble':
+                       case 'org.apache.storm':
+                           it.scope.get(0).value = 'provided';
+                           break;
+                       default:
+                           it.scope.get(0).value = 'compile';
+                   }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            credentials {
+                username "publisher"
+                password System.properties['pub.pwd']
+            }
+            // change to point to your repo, e.g. http://my.org/repo
+            url "https://maven.sugarops.com/repository/" + System.properties['pub.repoName']
+        }
+    }
+}
