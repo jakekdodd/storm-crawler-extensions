@@ -136,7 +136,7 @@ public class JSoupParserBolt extends BaseRichBolt {
             text = jsoupDoc.body().text();
 
         } catch (Throwable e) {
-            log.error("Exception while parsing " + url, e);
+            log.error("Exception while parsing {}", url, e);
             collector.fail(tuple);
             eventCounter.scope("failed").incrBy(1);
             return;
@@ -144,7 +144,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         long duration = System.currentTimeMillis() - start;
 
-        log.info("Parsed " + url + " in " + duration + " msec");
+        log.info("Parsed {} in {} msec", url, duration);
 
         // apply the parse filters if any
         parseFilters.filter(url, content, fragment, metadata);
@@ -160,7 +160,7 @@ public class JSoupParserBolt extends BaseRichBolt {
         } catch (MalformedURLException e1) {
             // we would have known by now as previous
             // components check whether the URL is valid
-            log.error("MalformedURLException on " + url);
+            log.error("MalformedURLException on {}", url);
             collector.fail(tuple);
             return;
         }
@@ -172,11 +172,10 @@ public class JSoupParserBolt extends BaseRichBolt {
             String targetURL = linkIterator.next();
             // resolve the host of the target
             String toHost = null;
-            String urlOL = null;
             try {
                 URL tmpURL = URLUtil.resolveURL(url_, targetURL);
                 toHost = tmpURL.getHost();
-                urlOL = tmpURL.toExternalForm();
+                targetURL = tmpURL.toExternalForm();
             } catch (MalformedURLException e) {
                 log.debug("MalformedURLException on {}", targetURL);
                 continue;
@@ -184,20 +183,20 @@ public class JSoupParserBolt extends BaseRichBolt {
 
             // filter the urls
             if (urlFilters != null) {
-                urlOL = urlFilters.filter(urlOL);
-                if (urlOL == null) {
+                targetURL = urlFilters.filter(targetURL);
+                if (targetURL == null) {
                     continue;
                 }
             }
 
-            if (urlOL != null && ignoreOutsideHost) {
+            if (targetURL != null && ignoreOutsideHost) {
                 if (toHost == null || !toHost.equals(fromHost)) {
-                    urlOL = null; // skip it
+                    targetURL = null; // skip it
                     continue;
                 }
             }
 
-            if (urlOL != null && ignoreOutsideDomain) {
+            if (targetURL != null && ignoreOutsideDomain) {
                 String toDomain;
                 try {
                     toDomain = PaidLevelDomain.getPLD(toHost);
@@ -205,13 +204,13 @@ public class JSoupParserBolt extends BaseRichBolt {
                     toDomain = null;
                 }
                 if (toDomain == null || !toDomain.equals(fromDomain)) {
-                    urlOL = null; // skip it
+                    targetURL = null; // skip it
                     continue;
                 }
             }
             // the link has survived the various filters
-            if (urlOL != null) {
-                linksKept.add(urlOL);
+            if (targetURL != null) {
+                linksKept.add(targetURL);
             }
         }
 
