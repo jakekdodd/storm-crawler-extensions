@@ -2,10 +2,19 @@ package com.shopstyle.crawler.jsoup;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.DocumentFragment;
@@ -20,9 +29,13 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
+import com.digitalpebble.storm.crawler.util.URLUtil;
+
+import crawlercommons.url.PaidLevelDomain;
 
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
@@ -39,6 +52,11 @@ public class JSoupParserBolt extends BaseRichBolt {
     private MultiCountMetric eventCounter;
 
     private ParseFilter parseFilters = null;
+
+    private URLFilters urlFilters = null;
+
+    private boolean ignoreOutsideHost = false;
+    private boolean ignoreOutsideDomain = false;
 
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
 
@@ -58,6 +76,23 @@ public class JSoupParserBolt extends BaseRichBolt {
                 throw new RuntimeException("Exception caught while loading the ParseFilters", e);
             }
         }
+
+        String urlconfigfile =
+                ConfUtils.getString(conf, "urlfilters.config.file", "urlfilters.json");
+
+        if (urlconfigfile != null)
+            try {
+                urlFilters = new URLFilters(urlconfigfile);
+            } catch (IOException e) {
+                log.error("Exception caught while loading the URLFilters");
+                throw new RuntimeException("Exception caught while loading the URLFilters", e);
+            }
+
+        ignoreOutsideHost =
+                ConfUtils.getBoolean(conf, "parser.ignore.outlinks.outside.host", false);
+        ignoreOutsideDomain =
+                ConfUtils.getBoolean(conf, "parser.ignore.outlinks.outside.domain", false);
+
     }
 
     public void execute(Tuple tuple) {
@@ -81,14 +116,25 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         String text = "";
 
+        Set<String> slinks = Collections.emptySet();
+
         DocumentFragment fragment;
         try (ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
             org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(bais, null, url);
             fragment = DOMBuilder.jsoup2HTML(jsoupDoc);
 
-            // StringBuffer sb = new StringBuffer();
-            // utils.getText(sb, fragment); // extract text
-            // text = sb.toString();
+            Elements links = jsoupDoc.select("a[href]");
+            slinks = new HashSet<String>(links.size());
+            for (Element link : links) {
+                String targetURL = link.attr("abs:href");
+                String anchor = link.text();
+                // ignore the anchors for now
+                if (StringUtils.isNotBlank(targetURL))
+                    slinks.add(targetURL);
+            }
+
+            text = jsoupDoc.body().text();
+
         } catch (Throwable e) {
             log.error("Exception while parsing " + url, e);
             collector.fail(tuple);
@@ -103,9 +149,75 @@ public class JSoupParserBolt extends BaseRichBolt {
         // apply the parse filters if any
         parseFilters.filter(url, content, fragment, metadata);
 
+        // get the outlinks and convert them to strings (for now)
+        String fromHost;
+        String fromDomain;
+        URL url_;
+        try {
+            url_ = new URL(url);
+            fromHost = url_.getHost().toLowerCase();
+            fromDomain = PaidLevelDomain.getPLD(fromHost);
+        } catch (MalformedURLException e1) {
+            // we would have known by now as previous
+            // components check whether the URL is valid
+            log.error("MalformedURLException on " + url);
+            collector.fail(tuple);
+            return;
+        }
+
+        Set<String> linksKept = new HashSet<String>();
+
+        Iterator<String> linkIterator = slinks.iterator();
+        while (linkIterator.hasNext()) {
+            String targetURL = linkIterator.next();
+            // resolve the host of the target
+            String toHost = null;
+            String urlOL = null;
+            try {
+                URL tmpURL = URLUtil.resolveURL(url_, targetURL);
+                toHost = tmpURL.getHost();
+                urlOL = tmpURL.toExternalForm();
+            } catch (MalformedURLException e) {
+                log.debug("MalformedURLException on {}", targetURL);
+                continue;
+            }
+
+            // filter the urls
+            if (urlFilters != null) {
+                urlOL = urlFilters.filter(urlOL);
+                if (urlOL == null) {
+                    continue;
+                }
+            }
+
+            if (urlOL != null && ignoreOutsideHost) {
+                if (toHost == null || !toHost.equals(fromHost)) {
+                    urlOL = null; // skip it
+                    continue;
+                }
+            }
+
+            if (urlOL != null && ignoreOutsideDomain) {
+                String toDomain;
+                try {
+                    toDomain = PaidLevelDomain.getPLD(toHost);
+                } catch (Exception e) {
+                    toDomain = null;
+                }
+                if (toDomain == null || !toDomain.equals(fromDomain)) {
+                    urlOL = null; // skip it
+                    continue;
+                }
+            }
+            // the link has survived the various filters
+            if (urlOL != null) {
+                linksKept.add(urlOL);
+            }
+        }
+
         eventCounter.scope("parsed").incrBy(1);
 
-        collector.emit(tuple, new Values(url, content, metadata, text.trim()));
+        collector.emit(tuple, new Values(url, content, metadata, text.trim(), slinks));
 
         collector.ack(tuple);
     }
