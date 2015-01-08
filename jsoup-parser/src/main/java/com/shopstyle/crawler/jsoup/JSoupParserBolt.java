@@ -173,9 +173,8 @@ public class JSoupParserBolt extends BaseRichBolt {
             // resolve the host of the target
             String toHost = null;
             try {
-                URL tmpURL = URLUtil.resolveURL(url_, targetURL);
+                URL tmpURL = new URL(targetURL);
                 toHost = tmpURL.getHost();
-                targetURL = tmpURL.toExternalForm();
             } catch (MalformedURLException e) {
                 log.debug("MalformedURLException on {}", targetURL);
                 continue;
@@ -224,8 +223,7 @@ public class JSoupParserBolt extends BaseRichBolt {
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         // output of this module is the list of fields to index
         // with at least the URL, text content
-
-        declarer.declare(new Fields("url", "content", "metadata", "text"));
+        declarer.declare(new Fields("url", "content", "metadata", "text", "outlinks"));
     }
 
     public static void print(Node node, String indent, StringBuffer sb) {
