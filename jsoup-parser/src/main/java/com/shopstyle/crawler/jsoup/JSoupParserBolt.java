@@ -33,7 +33,6 @@ import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
-import com.digitalpebble.storm.crawler.util.URLUtil;
 
 import crawlercommons.url.PaidLevelDomain;
 
