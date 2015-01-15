@@ -22,15 +22,13 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.DocumentFragment;
 import org.w3c.dom.Node;
 
-public class MicrodataFilter implements ParseFilter
-{
+public class MicrodataFilter implements ParseFilter {
     private Logger log = LoggerFactory.getLogger(getClass());
     private boolean includeErrors;
     private boolean useUniquePrefixForNestedValues;
 
     @Override
-    public void configure(Map stormConf, JsonNode paramNode)
-    {
+    public void configure(Map stormConf, JsonNode paramNode) {
         JsonNode includeErrorField = paramNode.get("includeErrors");
         includeErrors = includeErrorField != null && includeErrorField.asBoolean();
         JsonNode uniquePrefixField = paramNode.get("useUniquePrefixForNestedValues");
@@ -38,25 +36,23 @@ public class MicrodataFilter implements ParseFilter
     }
 
     @Override
-    public boolean needsDOM()
-    {
+    public boolean needsDOM() {
         return true;
     }
 
     @Override
     public void filter(String URL, byte[] content, DocumentFragment doc,
-        HashMap<String, String[]> metadata)
-    {
+            HashMap<String, String[]> metadata) {
         MicrodataParserReport report;
         try {
             report = getMicrodata(doc);
-        }
-        catch (MicrodataParserException e) {
-            log.error("Error parsing microdata " + URL, e);
+        } catch (MicrodataParserException e) {
+            log.error("Error parsing microdata {}", URL, e);
             return;
         }
         for (ItemScope itemScope : report.getDetectedItemScopes()) {
-            addItemScopeToMetadata(itemScope, "microdata." + getShortItemType(itemScope) + '.', metadata);
+            addItemScopeToMetadata(itemScope, "microdata." + getShortItemType(itemScope) + '.',
+                    metadata);
         }
         if (includeErrors) {
             MicrodataParserException[] errors = report.getErrors();
@@ -69,8 +65,7 @@ public class MicrodataFilter implements ParseFilter
     }
 
     private MicrodataParserReport getMicrodata(DocumentFragment document)
-        throws MicrodataParserException
-    {
+            throws MicrodataParserException {
         // Same as MicrodataParser.getTopLevelItemScopeNodes(Node)
         // But doesn't remove the nested ones
         final List<Node> itemScopeNodes = MicrodataParser.getItemScopeNodes(document);
@@ -87,12 +82,11 @@ public class MicrodataFilter implements ParseFilter
             items.add(microdataParser.getItemScope(itemNode));
         }
         return new MicrodataParserReport(items.toArray(new ItemScope[items.size()]),
-            microdataParser.getErrors());
+                microdataParser.getErrors());
     }
 
     private void addItemScopeToMetadata(ItemScope itemScope, String outerPrefix,
-        HashMap<String, String[]> metadata)
-    {
+            HashMap<String, String[]> metadata) {
         Map<String, MutableInt> nestedPrefixIdByType = null;
         Map<String, List<ItemProp>> properties = itemScope.getProperties();
         for (String propertyName : properties.keySet()) {
@@ -102,9 +96,9 @@ public class MicrodataFilter implements ParseFilter
                 ItemPropValue itemPropValue = itemProp.getValue();
                 if (itemPropValue == null) {
                     continue;
-                }
-                else if (itemPropValue.isNested()) {
-                    StringBuilder nestedPrefix = new StringBuilder(outerPrefix).append(propertyName).append('.');
+                } else if (itemPropValue.isNested()) {
+                    StringBuilder nestedPrefix =
+                            new StringBuilder(outerPrefix).append(propertyName).append('.');
                     if (useUniquePrefixForNestedValues) {
                         if (nestedPrefixIdByType == null) {
                             nestedPrefixIdByType = new HashMap<>();
@@ -113,20 +107,17 @@ public class MicrodataFilter implements ParseFilter
                         if (prefixId == null) {
                             prefixId = new MutableInt();
                             nestedPrefixIdByType.put(propertyName, prefixId);
-                        }
-                        else {
+                        } else {
                             prefixId.increment();
                         }
                         nestedPrefix.append(prefixId).append('.');
                     }
                     addItemScopeToMetadata(itemPropValue.getAsNested(), nestedPrefix.toString(),
-                        metadata);
-                }
-                else if (itemPropValue.isDate()) {
+                            metadata);
+                } else if (itemPropValue.isDate()) {
                     // Simplest way...
                     itemValues.add(String.valueOf(itemPropValue.getAsDate().getTime()));
-                }
-                else {
+                } else {
                     itemValues.add((String) itemPropValue.getContent());
                 }
             }
@@ -134,13 +125,11 @@ public class MicrodataFilter implements ParseFilter
         }
     }
 
-    private String getShortItemType(ItemScope itemScope)
-    {
+    private String getShortItemType(ItemScope itemScope) {
         String path = itemScope.getType().getPath();
         if (StringUtils.isEmpty(path)) {
             return "unknown";
-        }
-        else {
+        } else {
             int lastSlash = path.lastIndexOf('/');
             return path.substring(lastSlash + 1).toLowerCase();
         }
