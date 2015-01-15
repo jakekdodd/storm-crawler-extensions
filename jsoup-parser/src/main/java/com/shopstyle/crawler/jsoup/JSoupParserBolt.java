@@ -11,15 +11,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
-
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -34,13 +25,21 @@ import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
 
+import org.apache.commons.lang.StringUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
+
 import crawlercommons.url.PaidLevelDomain;
 
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
  * outlinks for now.
- ***/
-
+ */
 @SuppressWarnings("serial")
 public class JSoupParserBolt extends BaseRichBolt {
 
@@ -57,6 +56,7 @@ public class JSoupParserBolt extends BaseRichBolt {
     private boolean ignoreOutsideHost = false;
     private boolean ignoreOutsideDomain = false;
 
+    @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
 
         this.collector = collector;
@@ -69,7 +69,7 @@ public class JSoupParserBolt extends BaseRichBolt {
                 ConfUtils.getString(conf, "parsefilters.config.file", "parsefilters.json");
         if (parseconfigfile != null) {
             try {
-                parseFilters = new ParseFilters(parseconfigfile);
+                parseFilters = new ParseFilters(conf, parseconfigfile);
             } catch (IOException e) {
                 log.error("Exception caught while loading the ParseFilters");
                 throw new RuntimeException("Exception caught while loading the ParseFilters", e);
@@ -79,13 +79,14 @@ public class JSoupParserBolt extends BaseRichBolt {
         String urlconfigfile =
                 ConfUtils.getString(conf, "urlfilters.config.file", "urlfilters.json");
 
-        if (urlconfigfile != null)
+        if (urlconfigfile != null) {
             try {
                 urlFilters = new URLFilters(urlconfigfile);
             } catch (IOException e) {
                 log.error("Exception caught while loading the URLFilters");
                 throw new RuntimeException("Exception caught while loading the URLFilters", e);
             }
+        }
 
         ignoreOutsideHost =
                 ConfUtils.getBoolean(conf, "parser.ignore.outlinks.outside.host", false);
@@ -94,6 +95,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
     }
 
+    @Override
     public void execute(Tuple tuple) {
 
         byte[] content = tuple.getBinaryByField("content");
@@ -128,8 +130,9 @@ public class JSoupParserBolt extends BaseRichBolt {
                 String targetURL = link.attr("abs:href");
                 String anchor = link.text();
                 // ignore the anchors for now
-                if (StringUtils.isNotBlank(targetURL))
+                if (StringUtils.isNotBlank(targetURL)) {
                     slinks.add(targetURL);
+                }
             }
 
             text = jsoupDoc.body().text();
@@ -219,6 +222,7 @@ public class JSoupParserBolt extends BaseRichBolt {
         collector.ack(tuple);
     }
 
+    @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         // output of this module is the list of fields to index
         // with at least the URL, text content

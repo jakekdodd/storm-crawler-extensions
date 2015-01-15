@@ -4,13 +4,14 @@ apply plugin: 'maven-publish'
 
 sourceCompatibility = '1.7'
 group = 'com.shopstyle.storm-crawler-extensions'
-version = '0.1'
+version = '0.2-SNAPSHOT'
 
 repositories {
     mavenCentral()
     maven {
         url "http://clojars.org/repo"
     }
+    mavenLocal()
 }
 
 configurations {
@@ -26,8 +27,8 @@ configurations {
 
 dependencies {
     provided (
-        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.3'],
-        [group:'org.apache.storm',           name:'storm-core',             version:'0.9.2-incubating']
+        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.4-SNAPSHOT'],
+        [group:'org.apache.storm',           name:'storm-core',             version:'0.9.3']
     )
 
     compile (
