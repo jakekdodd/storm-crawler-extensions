@@ -5,6 +5,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.digitalpebble.storm.crawler.parse.ParseFilter;
+import com.digitalpebble.storm.crawler.util.KeyValues;
+import com.fasterxml.jackson.databind.JsonNode;
+
 import org.apache.any23.extractor.microdata.ItemProp;
 import org.apache.any23.extractor.microdata.ItemPropValue;
 import org.apache.any23.extractor.microdata.ItemScope;
@@ -13,14 +17,10 @@ import org.apache.any23.extractor.microdata.MicrodataParserException;
 import org.apache.any23.extractor.microdata.MicrodataParserReport;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.codehaus.jackson.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.DocumentFragment;
 import org.w3c.dom.Node;
-
-import com.digitalpebble.storm.crawler.parse.ParseFilter;
-import com.digitalpebble.storm.crawler.util.KeyValues;
 
 public class MicrodataFilter implements ParseFilter
 {
@@ -29,7 +29,7 @@ public class MicrodataFilter implements ParseFilter
     private boolean useUniquePrefixForNestedValues;
 
     @Override
-    public void configure(JsonNode paramNode)
+    public void configure(Map stormConf, JsonNode paramNode)
     {
         JsonNode includeErrorField = paramNode.get("includeErrors");
         includeErrors = includeErrorField != null && includeErrorField.asBoolean();

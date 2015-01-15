@@ -4,10 +4,11 @@ apply plugin: 'maven-publish'
 
 sourceCompatibility = '1.7'
 group = 'com.shopstyle.storm-crawler-extensions'
-version = '0.2'
+version = '0.3-SNAPSHOT'
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 configurations {
@@ -23,7 +24,7 @@ configurations {
 
 dependencies {
     provided (
-        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.3']
+        [group:'com.digitalpebble',          name:'storm-crawler',          version:'0.4-SNAPSHOT']
     )
 
     compile (

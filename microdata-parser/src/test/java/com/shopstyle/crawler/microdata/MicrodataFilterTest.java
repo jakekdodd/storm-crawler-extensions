@@ -7,17 +7,17 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.digitalpebble.storm.crawler.util.KeyValues;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.html.dom.HTMLDocumentImpl;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.cyberneko.html.parsers.DOMFragmentParser;
 import org.junit.Assert;
 import org.junit.Test;
 import org.w3c.dom.DocumentFragment;
 import org.xml.sax.InputSource;
-
-import com.digitalpebble.storm.crawler.util.KeyValues;
 
 public class MicrodataFilterTest
 {
@@ -102,7 +102,7 @@ public class MicrodataFilterTest
 		ObjectMapper mapper = new ObjectMapper();
 		JsonNode confNode = mapper.readValue(confStream, JsonNode.class);
 		MicrodataFilter filter = new MicrodataFilter();
-		filter.configure(confNode);
+		filter.configure(new HashMap(), confNode);
 		return filter;
     }
 
