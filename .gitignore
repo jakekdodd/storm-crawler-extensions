@@ -9,4 +9,5 @@ gradle-app.setting
 */.classpath
 */.project
 */.settings
+*/bin
 
