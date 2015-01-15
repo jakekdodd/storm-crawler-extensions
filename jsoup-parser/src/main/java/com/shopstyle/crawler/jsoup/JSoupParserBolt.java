@@ -217,7 +217,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         eventCounter.scope("parsed").incrBy(1);
 
-        collector.emit(tuple, new Values(url, content, metadata, text.trim(), slinks));
+        collector.emit(tuple, new Values(url, content, metadata, text.trim(), linksKept));
 
         collector.ack(tuple);
     }
