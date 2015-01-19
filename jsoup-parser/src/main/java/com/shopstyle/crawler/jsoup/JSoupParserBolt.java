@@ -10,6 +10,17 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.entity.ContentType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
 
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
@@ -23,16 +34,11 @@ import backtype.storm.tuple.Values;
 import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
+import com.digitalpebble.storm.crawler.protocol.HttpHeaders;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
-
-import org.apache.commons.lang.StringUtils;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
+import com.digitalpebble.storm.crawler.util.KeyValues;
+import com.ibm.icu.text.CharsetDetector;
+import com.ibm.icu.text.CharsetMatch;
 
 import crawlercommons.url.PaidLevelDomain;
 
@@ -58,7 +64,6 @@ public class JSoupParserBolt extends BaseRichBolt {
 
     @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
-
         this.collector = collector;
 
         this.eventCounter = context.registerMetric("parser_counter", new MultiCountMetric(), 10);
@@ -104,10 +109,9 @@ public class JSoupParserBolt extends BaseRichBolt {
         HashMap<String, String[]> metadata =
                 (HashMap<String, String[]>) tuple.getValueByField("metadata");
 
-        // TODO check status etc...
-
         if (content == null) {
             log.error("Null content for : " + url);
+            // TODO use status stream instead
             collector.fail(tuple);
             eventCounter.scope("failed").incrBy(1);
             return;
@@ -119,9 +123,35 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         Set<String> slinks = Collections.emptySet();
 
+        String charset = null;
+
+        // check if the server specified a charset
+        String contentType = KeyValues.getValue(HttpHeaders.CONTENT_TYPE, metadata);
+        try {
+            ContentType ct = org.apache.http.entity.ContentType.parse(contentType);
+            charset = ct.getCharset().name();
+        } catch (Exception e) {
+            charset = null;
+        }
+
+        // filter HTML tags
+        CharsetDetector detector = new CharsetDetector();
+        detector.enableInputFilter(true);
+        // give it a hint
+        detector.setDeclaredEncoding(charset);
+        detector.setText(content);
+        try {
+            CharsetMatch charsetMatch = detector.detect();
+            if (charsetMatch != null) {
+                charset = charsetMatch.getName();
+            }
+        } catch (Exception e) {
+            // ignore and leave the charset as-is
+        }
+
         DocumentFragment fragment;
         try (ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
-            org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(bais, null, url);
+            org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(bais, charset, url);
             fragment = DOMBuilder.jsoup2HTML(jsoupDoc);
 
             Elements links = jsoupDoc.select("a[href]");
