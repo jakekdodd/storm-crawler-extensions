@@ -128,8 +128,8 @@ public class JSoupParserBolt extends BaseRichBolt {
             slinks = new HashSet<String>(links.size());
             for (Element link : links) {
                 String targetURL = link.attr("abs:href");
-                String anchor = link.text();
                 // ignore the anchors for now
+                // String anchor = link.text();
                 if (StringUtils.isNotBlank(targetURL)) {
                     slinks.add(targetURL);
                 }
