@@ -3,8 +3,9 @@ apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
 sourceCompatibility = '1.7'
+targetCompatibility = '1.7'
 group = 'com.shopstyle.storm-crawler-extensions'
-version = '0.3-SNAPSHOT'
+version = '0.3'
 
 repositories {
     mavenCentral()
@@ -24,7 +25,7 @@ configurations {
 
 dependencies {
     provided (
-        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.4-SNAPSHOT']
+        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.4']
     )
 
     compile (
@@ -49,10 +50,20 @@ eclipse {
     }
 }
 
+task sourcesJar(type: Jar, dependsOn: compileJava) {
+    from sourceSets.main.java
+    classifier = 'sources'
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+
+            artifact sourcesJar {
+                classifier "sources"
+            }
+
             // By default, the Gradle plugin publishes all artifacts
             // with scope='runtime'... In other words, we have to edit
             // the generated POM by hand pretty much...
