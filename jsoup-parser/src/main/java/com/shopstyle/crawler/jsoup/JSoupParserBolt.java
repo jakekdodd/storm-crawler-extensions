@@ -10,17 +10,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.http.entity.ContentType;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
 
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
@@ -39,6 +28,16 @@ import com.digitalpebble.storm.crawler.util.ConfUtils;
 import com.digitalpebble.storm.crawler.util.KeyValues;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.entity.ContentType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
 
 import crawlercommons.url.PaidLevelDomain;
 
@@ -86,7 +85,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         if (urlconfigfile != null) {
             try {
-                urlFilters = new URLFilters(urlconfigfile);
+                urlFilters = new URLFilters(conf, urlconfigfile);
             } catch (IOException e) {
                 log.error("Exception caught while loading the URLFilters");
                 throw new RuntimeException("Exception caught while loading the URLFilters", e);
@@ -214,7 +213,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
             // filter the urls
             if (urlFilters != null) {
-                targetURL = urlFilters.filter(targetURL);
+                targetURL = urlFilters.filter(url_, metadata, targetURL);
                 if (targetURL == null) {
                     continue;
                 }
