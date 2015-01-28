@@ -5,7 +5,7 @@ apply plugin: 'maven-publish'
 sourceCompatibility = '1.7'
 targetCompatibility = '1.7'
 group = 'com.shopstyle.storm-crawler-extensions'
-version = '0.3'
+version = '0.4-SNAPSHOT'
 
 repositories {
     mavenCentral()
