@@ -11,6 +11,16 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.entity.ContentType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
+
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -29,18 +39,6 @@ import com.digitalpebble.storm.crawler.util.KeyValues;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.http.entity.ContentType;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
-
-import crawlercommons.url.PaidLevelDomain;
-
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
  * outlinks for now.
@@ -57,9 +55,6 @@ public class JSoupParserBolt extends BaseRichBolt {
     private ParseFilter parseFilters = null;
 
     private URLFilters urlFilters = null;
-
-    private boolean ignoreOutsideHost = false;
-    private boolean ignoreOutsideDomain = false;
 
     @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
@@ -91,12 +86,6 @@ public class JSoupParserBolt extends BaseRichBolt {
                 throw new RuntimeException("Exception caught while loading the URLFilters", e);
             }
         }
-
-        ignoreOutsideHost =
-                ConfUtils.getBoolean(conf, "parser.ignore.outlinks.outside.host", false);
-        ignoreOutsideDomain =
-                ConfUtils.getBoolean(conf, "parser.ignore.outlinks.outside.domain", false);
-
     }
 
     @Override
@@ -181,13 +170,9 @@ public class JSoupParserBolt extends BaseRichBolt {
         parseFilters.filter(url, content, fragment, metadata);
 
         // get the outlinks and convert them to strings (for now)
-        String fromHost;
-        String fromDomain;
         URL url_;
         try {
             url_ = new URL(url);
-            fromHost = url_.getHost().toLowerCase();
-            fromDomain = PaidLevelDomain.getPLD(fromHost);
         } catch (MalformedURLException e1) {
             // we would have known by now as previous
             // components check whether the URL is valid
@@ -201,40 +186,10 @@ public class JSoupParserBolt extends BaseRichBolt {
         Iterator<String> linkIterator = slinks.iterator();
         while (linkIterator.hasNext()) {
             String targetURL = linkIterator.next();
-            // resolve the host of the target
-            String toHost = null;
-            try {
-                URL tmpURL = new URL(targetURL);
-                toHost = tmpURL.getHost();
-            } catch (MalformedURLException e) {
-                log.debug("MalformedURLException on {}", targetURL);
-                continue;
-            }
-
             // filter the urls
             if (urlFilters != null) {
                 targetURL = urlFilters.filter(url_, metadata, targetURL);
                 if (targetURL == null) {
-                    continue;
-                }
-            }
-
-            if (targetURL != null && ignoreOutsideHost) {
-                if (toHost == null || !toHost.equals(fromHost)) {
-                    targetURL = null; // skip it
-                    continue;
-                }
-            }
-
-            if (targetURL != null && ignoreOutsideDomain) {
-                String toDomain;
-                try {
-                    toDomain = PaidLevelDomain.getPLD(toHost);
-                } catch (Exception e) {
-                    toDomain = null;
-                }
-                if (toDomain == null || !toDomain.equals(fromDomain)) {
-                    targetURL = null; // skip it
                     continue;
                 }
             }
