@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -30,12 +29,12 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.digitalpebble.storm.crawler.Metadata;
 import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
 import com.digitalpebble.storm.crawler.protocol.HttpHeaders;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
-import com.digitalpebble.storm.crawler.util.KeyValues;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
 
@@ -94,8 +93,7 @@ public class JSoupParserBolt extends BaseRichBolt {
         byte[] content = tuple.getBinaryByField("content");
 
         String url = tuple.getStringByField("url");
-        HashMap<String, String[]> metadata =
-                (HashMap<String, String[]>) tuple.getValueByField("metadata");
+        Metadata metadata = (Metadata) tuple.getValueByField("metadata");
 
         if (content == null) {
             log.error("Null content for : " + url);
@@ -114,7 +112,7 @@ public class JSoupParserBolt extends BaseRichBolt {
         String charset = null;
 
         // check if the server specified a charset
-        String contentType = KeyValues.getValue(HttpHeaders.CONTENT_TYPE, metadata);
+        String contentType = metadata.getFirstValue(HttpHeaders.CONTENT_TYPE);
         try {
             ContentType ct = org.apache.http.entity.ContentType.parse(contentType);
             charset = ct.getCharset().name();

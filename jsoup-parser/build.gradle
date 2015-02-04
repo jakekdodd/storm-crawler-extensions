@@ -28,7 +28,7 @@ configurations {
 
 dependencies {
     provided (
-        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.4'],
+        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.5-SNAPSHOT'],
         [group:'org.apache.storm',           name:'storm-core',             version:'0.9.3']
     )
 
