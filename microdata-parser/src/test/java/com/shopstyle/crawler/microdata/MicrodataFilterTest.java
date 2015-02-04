@@ -5,11 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
-import java.util.Map;
-
-import com.digitalpebble.storm.crawler.util.KeyValues;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.html.dom.HTMLDocumentImpl;
@@ -19,6 +14,10 @@ import org.junit.Test;
 import org.w3c.dom.DocumentFragment;
 import org.xml.sax.InputSource;
 
+import com.digitalpebble.storm.crawler.Metadata;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class MicrodataFilterTest {
     @Test
     public void testDillardParsing() throws Exception {
@@ -26,14 +25,13 @@ public class MicrodataFilterTest {
                 "http://www.dillards.com/product/MICHAEL-Michael-Kors-Kempton-Small-Tote_301_-1_301_503911007";
         String configFile = "MicrodataFilterTest-mergeNestedValues.json";
         String contentFile = "dillards.com_503911007.html";
-        Map<String, String[]> metadata = parse(url, configFile, contentFile);
-        System.out.println(KeyValues.toString(metadata, null));
+        Metadata metadata = parse(url, configFile, contentFile);
+        System.out.println(metadata.toString(null));
         Assert.assertEquals("MICHAEL Michael Kors Kempton Small Tote",
-                KeyValues.getValue("microdata.product.name", metadata));
-        Assert.assertEquals("04044499",
-                KeyValues.getValue("microdata.product.identifier", metadata));
+                metadata.getFirstValue("microdata.product.name"));
+        Assert.assertEquals("04044499", metadata.getFirstValue("microdata.product.identifier"));
         Assert.assertEquals("MICHAEL Michael Kors ►",
-                KeyValues.getValue("microdata.product.brand", metadata));
+                metadata.getFirstValue("microdata.product.brand"));
     }
 
     @Test
@@ -42,24 +40,22 @@ public class MicrodataFilterTest {
                 "http://www1.macys.com/shop/product/calvin-klein-animal-print-faux-leather-inset-dress?ID=1668293&CategoryID=5449";
         String configFile = "MicrodataFilterTest-mergeNestedValues.json";
         String contentFile = "macy.com_1668293.html";
-        Map<String, String[]> metadata = parse(url, configFile, contentFile);
-        System.out.println(KeyValues.toString(metadata, null));
-        System.out.println(KeyValues.toString(metadata, null));
+        Metadata metadata = parse(url, configFile, contentFile);
+        System.out.println(metadata.toString(null));
+        System.out.println(metadata.toString(null));
         Assert.assertEquals("Women - Dresses",
-                KeyValues.getValue("microdata.webpage.breadcrumb", metadata));
+                metadata.getFirstValue("microdata.webpage.breadcrumb"));
         Assert.assertEquals("Calvin Klein Animal-Print Faux-Leather-Inset Dress",
-                KeyValues.getValue("microdata.product.name", metadata));
-        Assert.assertEquals("1668293", KeyValues.getValue("microdata.product.productID", metadata));
+                metadata.getFirstValue("microdata.product.name"));
+        Assert.assertEquals("1668293", metadata.getFirstValue("microdata.product.productID"));
         Assert.assertEquals(
                 "http://slimages.macys.com/is/image/MCY/products/3/optimized/2338853_fpx.tif"
                         + "?wid=59&hei=72&fit=fit,1&$filtersm$",
-                KeyValues.getValue("microdata.product.image", metadata));
-        Assert.assertEquals("$74.99",
-                KeyValues.getValue("microdata.product.offers.price", metadata));
-        Assert.assertEquals("USD",
-                KeyValues.getValue("microdata.product.offers.priceCurrency", metadata));
+                metadata.getFirstValue("microdata.product.image"));
+        Assert.assertEquals("$74.99", metadata.getFirstValue("microdata.product.offers.price"));
+        Assert.assertEquals("USD", metadata.getFirstValue("microdata.product.offers.priceCurrency"));
         Assert.assertEquals("http://schema.org/InStock",
-                KeyValues.getValue("microdata.product.offers.availability", metadata));
+                metadata.getFirstValue("microdata.product.offers.availability"));
     }
 
     @Test
@@ -68,33 +64,31 @@ public class MicrodataFilterTest {
                 "http://www1.macys.com/shop/product/calvin-klein-animal-print-faux-leather-inset-dress?ID=1668293&CategoryID=5449";
         String configFile = "MicrodataFilterTest-uniqueNestedValues.json";
         String contentFile = "macy.com_1668293.html";
-        Map<String, String[]> metadata = parse(url, configFile, contentFile);
+        Metadata metadata = parse(url, configFile, contentFile);
         Assert.assertNotNull(metadata);
-        System.out.println(KeyValues.toString(metadata, null));
+        System.out.println(metadata.toString(null));
         Assert.assertEquals("Women - Dresses",
-                KeyValues.getValue("microdata.webpage.breadcrumb", metadata));
+                metadata.getFirstValue("microdata.webpage.breadcrumb"));
         Assert.assertEquals("Calvin Klein Animal-Print Faux-Leather-Inset Dress",
-                KeyValues.getValue("microdata.product.name", metadata));
-        Assert.assertEquals("1668293", KeyValues.getValue("microdata.product.productID", metadata));
+                metadata.getFirstValue("microdata.product.name"));
+        Assert.assertEquals("1668293", metadata.getFirstValue("microdata.product.productID"));
         Assert.assertEquals(
                 "http://slimages.macys.com/is/image/MCY/products/3/optimized/2338853_fpx.tif"
                         + "?wid=59&hei=72&fit=fit,1&$filtersm$",
-                KeyValues.getValue("microdata.product.image", metadata));
-        Assert.assertEquals("$74.99",
-                KeyValues.getValue("microdata.product.offers.1.price", metadata));
+                metadata.getFirstValue("microdata.product.image"));
+        Assert.assertEquals("$74.99", metadata.getFirstValue("microdata.product.offers.1.price"));
         Assert.assertEquals("USD",
-                KeyValues.getValue("microdata.product.offers.1.priceCurrency", metadata));
+                metadata.getFirstValue("microdata.product.offers.1.priceCurrency"));
         Assert.assertEquals("http://schema.org/InStock",
-                KeyValues.getValue("microdata.product.offers.1.availability", metadata));
+                metadata.getFirstValue("microdata.product.offers.1.availability"));
     }
 
-    private Map<String, String[]> parse(String url, String configFile, String contentFile)
-            throws Exception {
+    private Metadata parse(String url, String configFile, String contentFile) throws Exception {
         MicrodataFilter filter = prepareFilter(configFile);
         byte[] content = readContent(contentFile);
         DocumentFragment fragment = parseHtmlContent(content);
 
-        HashMap<String, String[]> metadata = new HashMap<>();
+        Metadata metadata = new Metadata();
         filter.filter(url, content, fragment, metadata);
         return metadata;
     }

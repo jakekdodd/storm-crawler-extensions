@@ -5,10 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.digitalpebble.storm.crawler.parse.ParseFilter;
-import com.digitalpebble.storm.crawler.util.KeyValues;
-import com.fasterxml.jackson.databind.JsonNode;
-
 import org.apache.any23.extractor.microdata.ItemProp;
 import org.apache.any23.extractor.microdata.ItemPropValue;
 import org.apache.any23.extractor.microdata.ItemScope;
@@ -21,6 +17,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.DocumentFragment;
 import org.w3c.dom.Node;
+
+import com.digitalpebble.storm.crawler.Metadata;
+import com.digitalpebble.storm.crawler.parse.ParseFilter;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public class MicrodataFilter implements ParseFilter {
     private Logger log = LoggerFactory.getLogger(getClass());
@@ -41,8 +41,7 @@ public class MicrodataFilter implements ParseFilter {
     }
 
     @Override
-    public void filter(String URL, byte[] content, DocumentFragment doc,
-            HashMap<String, String[]> metadata) {
+    public void filter(String URL, byte[] content, DocumentFragment doc, Metadata metadata) {
         MicrodataParserReport report;
         try {
             report = getMicrodata(doc);
@@ -60,7 +59,7 @@ public class MicrodataFilter implements ParseFilter {
             for (MicrodataParserException error : errors) {
                 errorMessages.add(error.getMessage());
             }
-            KeyValues.addValues("microdata.errors", metadata, errorMessages);
+            metadata.addValues("microdata.errors", errorMessages);
         }
     }
 
@@ -85,8 +84,7 @@ public class MicrodataFilter implements ParseFilter {
                 microdataParser.getErrors());
     }
 
-    private void addItemScopeToMetadata(ItemScope itemScope, String outerPrefix,
-            HashMap<String, String[]> metadata) {
+    private void addItemScopeToMetadata(ItemScope itemScope, String outerPrefix, Metadata metadata) {
         Map<String, MutableInt> nestedPrefixIdByType = null;
         Map<String, List<ItemProp>> properties = itemScope.getProperties();
         for (String propertyName : properties.keySet()) {
@@ -121,7 +119,7 @@ public class MicrodataFilter implements ParseFilter {
                     itemValues.add((String) itemPropValue.getContent());
                 }
             }
-            KeyValues.addValues(outerPrefix + propertyName, metadata, itemValues);
+            metadata.addValues(outerPrefix + propertyName, itemValues);
         }
     }
 
