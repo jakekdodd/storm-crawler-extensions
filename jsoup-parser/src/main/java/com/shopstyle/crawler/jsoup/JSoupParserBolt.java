@@ -10,16 +10,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.http.entity.ContentType;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
-
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -33,10 +23,22 @@ import com.digitalpebble.storm.crawler.Metadata;
 import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
+import com.digitalpebble.storm.crawler.persistence.Status;
 import com.digitalpebble.storm.crawler.protocol.HttpHeaders;
 import com.digitalpebble.storm.crawler.util.ConfUtils;
+import com.digitalpebble.storm.crawler.util.MetadataTransfer;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.http.entity.ContentType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
 
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
@@ -55,11 +57,13 @@ public class JSoupParserBolt extends BaseRichBolt {
 
     private URLFilters urlFilters = null;
 
+    private MetadataTransfer metadataTransfer;
+
     @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
         this.collector = collector;
 
-        this.eventCounter = context.registerMetric("parser_counter", new MultiCountMetric(), 10);
+        eventCounter = context.registerMetric("parser_counter", new MultiCountMetric(), 10);
 
         parseFilters = ParseFilters.emptyParseFilter;
 
@@ -85,13 +89,13 @@ public class JSoupParserBolt extends BaseRichBolt {
                 throw new RuntimeException("Exception caught while loading the URLFilters", e);
             }
         }
+        metadataTransfer = new MetadataTransfer(conf);
     }
 
     @Override
     public void execute(Tuple tuple) {
 
         byte[] content = tuple.getBinaryByField("content");
-
         String url = tuple.getStringByField("url");
         Metadata metadata = (Metadata) tuple.getValueByField("metadata");
 
@@ -99,7 +103,7 @@ public class JSoupParserBolt extends BaseRichBolt {
             log.error("Null content for : " + url);
             // TODO use status stream instead
             collector.fail(tuple);
-            eventCounter.scope("failed").incrBy(1);
+            eventCounter.scope("failed").incr();
             return;
         }
 
@@ -156,7 +160,7 @@ public class JSoupParserBolt extends BaseRichBolt {
         } catch (Throwable e) {
             log.error("Exception while parsing {}", url, e);
             collector.fail(tuple);
-            eventCounter.scope("failed").incrBy(1);
+            eventCounter.scope("failed").incr();
             return;
         }
 
@@ -188,18 +192,26 @@ public class JSoupParserBolt extends BaseRichBolt {
             if (urlFilters != null) {
                 targetURL = urlFilters.filter(url_, metadata, targetURL);
                 if (targetURL == null) {
+                    eventCounter.scope("outlink_filtered").incr();
                     continue;
                 }
             }
             // the link has survived the various filters
             if (targetURL != null) {
                 linksKept.add(targetURL);
+                eventCounter.scope("outlink_kept").incr();
             }
         }
 
-        eventCounter.scope("parsed").incrBy(1);
+        for (String outlink : linksKept) {
+            // configure which metadata gets inherited from parent
+            Metadata linkMetadata = metadataTransfer.getMetaForOutlink(url, metadata);
+            collector.emit(com.digitalpebble.storm.crawler.Constants.StatusStreamName, tuple,
+                    new Values(outlink, linkMetadata, Status.DISCOVERED));
+        }
 
-        collector.emit(tuple, new Values(url, content, metadata, text.trim(), linksKept));
+        eventCounter.scope("parsed").incr();
+        collector.emit(tuple, new Values(url, content, metadata, text.trim()));
 
         collector.ack(tuple);
     }
@@ -208,7 +220,9 @@ public class JSoupParserBolt extends BaseRichBolt {
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
         // output of this module is the list of fields to index
         // with at least the URL, text content
-        declarer.declare(new Fields("url", "content", "metadata", "text", "outlinks"));
+        declarer.declare(new Fields("url", "content", "metadata", "text"));
+        declarer.declareStream(com.digitalpebble.storm.crawler.Constants.StatusStreamName,
+                new Fields("url", "metadata", "status"));
     }
 
     public static void print(Node node, String indent, StringBuffer sb) {
