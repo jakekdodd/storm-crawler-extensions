@@ -19,6 +19,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.digitalpebble.storm.crawler.Constants;
 import com.digitalpebble.storm.crawler.Metadata;
 import com.digitalpebble.storm.crawler.filtering.URLFilters;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
@@ -30,7 +31,7 @@ import com.digitalpebble.storm.crawler.util.MetadataTransfer;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.entity.ContentType;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
@@ -47,6 +48,7 @@ import org.w3c.dom.Node;
 @SuppressWarnings("serial")
 public class JSoupParserBolt extends BaseRichBolt {
 
+    private static final String ERROR_MESSAGE = "errorMessage";
     private final Logger log = LoggerFactory.getLogger(JSoupParserBolt.class);
 
     private OutputCollector collector;
@@ -100,10 +102,8 @@ public class JSoupParserBolt extends BaseRichBolt {
         Metadata metadata = (Metadata) tuple.getValueByField("metadata");
 
         if (content == null) {
-            log.error("Null content for : " + url);
-            // TODO use status stream instead
-            collector.fail(tuple);
-            eventCounter.scope("failed").incr();
+            log.error("Null content for {} ", url);
+            handleParsingError(tuple, "Null content for " + url, metadata, url);
             return;
         }
 
@@ -148,8 +148,6 @@ public class JSoupParserBolt extends BaseRichBolt {
             slinks = new HashSet<String>(links.size());
             for (Element link : links) {
                 String targetURL = link.attr("abs:href");
-                // ignore the anchors for now
-                // String anchor = link.text();
                 if (StringUtils.isNotBlank(targetURL)) {
                     slinks.add(targetURL);
                 }
@@ -159,8 +157,8 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         } catch (Throwable e) {
             log.error("Exception while parsing {}", url, e);
-            collector.fail(tuple);
-            eventCounter.scope("failed").incr();
+            handleParsingError(tuple, "Exception while parsing " + url + " : " + e.getMessage(),
+                    metadata, url);
             return;
         }
 
@@ -169,17 +167,26 @@ public class JSoupParserBolt extends BaseRichBolt {
         log.info("Parsed {} in {} msec", url, duration);
 
         // apply the parse filters if any
-        parseFilters.filter(url, content, fragment, metadata);
 
+        try {
+            parseFilters.filter(url, content, fragment, metadata);
+        } catch (RuntimeException e) {
+            log.error("Error while running the parse filters with {} ", url, e);
+            handleParsingError(tuple, "Error while running the parse filters with " + url + " : "
+                    + e.getMessage(), metadata, url);
+            return;
+        }
         // get the outlinks and convert them to strings (for now)
         URL url_;
         try {
             url_ = new URL(url);
         } catch (MalformedURLException e1) {
-            // we would have known by now as previous
-            // components check whether the URL is valid
-            log.error("MalformedURLException on {}", url);
-            collector.fail(tuple);
+            /*
+             * we would have known by now as previous components check whether the URL is valid
+             */
+            log.error("MalformedURLException on {} ", url, e1);
+            handleParsingError(tuple, "MalformedURLException on " + url + " : " + e1.getMessage(),
+                    metadata, url);
             return;
         }
 
@@ -209,11 +216,16 @@ public class JSoupParserBolt extends BaseRichBolt {
             collector.emit(com.digitalpebble.storm.crawler.Constants.StatusStreamName, tuple,
                     new Values(outlink, linkMetadata, Status.DISCOVERED));
         }
-
         eventCounter.scope("parsed").incr();
         collector.emit(tuple, new Values(url, content, metadata, text.trim()));
-
         collector.ack(tuple);
+    }
+
+    private void handleParsingError(Tuple tuple, String errorMessage, Metadata metadata, String url) {
+        metadata.setValue(ERROR_MESSAGE, errorMessage);
+        collector.emit(Constants.StatusStreamName, new Values(url, metadata, Status.ERROR));
+        collector.ack(tuple);
+        eventCounter.scope("failed").incr();
     }
 
     @Override
