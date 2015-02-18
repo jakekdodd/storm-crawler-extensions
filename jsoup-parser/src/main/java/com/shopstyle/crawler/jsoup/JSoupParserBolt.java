@@ -5,10 +5,21 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.entity.ContentType;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Node;
 
 import backtype.storm.metric.api.MultiCountMetric;
 import backtype.storm.task.OutputCollector;
@@ -31,16 +42,6 @@ import com.digitalpebble.storm.crawler.util.MetadataTransfer;
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.entity.ContentType;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.DocumentFragment;
-import org.w3c.dom.Node;
-
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
  * outlinks for now.
@@ -60,6 +61,11 @@ public class JSoupParserBolt extends BaseRichBolt {
     private URLFilters urlFilters = null;
 
     private MetadataTransfer metadataTransfer;
+
+    private boolean trackAnchors = true;
+
+    /** Metadata key name for tracking the anchors */
+    public static final String ANCHORS_KEY_NAME = "anchors";
 
     @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
@@ -91,6 +97,9 @@ public class JSoupParserBolt extends BaseRichBolt {
                 throw new RuntimeException("Exception caught while loading the URLFilters", e);
             }
         }
+
+        trackAnchors = ConfUtils.getBoolean(conf, "track.anchors", true);
+
         metadataTransfer = new MetadataTransfer(conf);
     }
 
@@ -111,7 +120,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         String text = "";
 
-        Set<String> slinks = Collections.emptySet();
+        Map<String, List<String>> slinks = Collections.emptyMap();
 
         String charset = null;
 
@@ -145,11 +154,19 @@ public class JSoupParserBolt extends BaseRichBolt {
             fragment = DOMBuilder.jsoup2HTML(jsoupDoc);
 
             Elements links = jsoupDoc.select("a[href]");
-            slinks = new HashSet<String>(links.size());
+            slinks = new HashMap<String, List<String>>(links.size());
             for (Element link : links) {
                 String targetURL = link.attr("abs:href");
+                String anchor = link.text();
                 if (StringUtils.isNotBlank(targetURL)) {
-                    slinks.add(targetURL);
+                    List<String> anchors = slinks.get(targetURL);
+                    if (anchors == null) {
+                        anchors = new LinkedList<String>();
+                    }
+                    if (StringUtils.isNotBlank(anchor)) {
+                        anchors.add(anchor);
+                    }
+                    slinks.put(targetURL, anchors);
                 }
             }
 
@@ -190,9 +207,9 @@ public class JSoupParserBolt extends BaseRichBolt {
             return;
         }
 
-        Set<String> linksKept = new HashSet<String>();
+        Map<String, List<String>> linksKept = new HashMap<String, List<String>>();
 
-        Iterator<String> linkIterator = slinks.iterator();
+        Iterator<String> linkIterator = slinks.keySet().iterator();
         while (linkIterator.hasNext()) {
             String targetURL = linkIterator.next();
             // filter the urls
@@ -205,14 +222,22 @@ public class JSoupParserBolt extends BaseRichBolt {
             }
             // the link has survived the various filters
             if (targetURL != null) {
-                linksKept.add(targetURL);
+                List<String> anchors = slinks.get(targetURL);
+                linksKept.put(targetURL, anchors);
                 eventCounter.scope("outlink_kept").incr();
             }
         }
 
-        for (String outlink : linksKept) {
+        for (String outlink : linksKept.keySet()) {
             // configure which metadata gets inherited from parent
             Metadata linkMetadata = metadataTransfer.getMetaForOutlink(url, metadata);
+            // add the anchors to the metadata?
+            if (trackAnchors) {
+                List<String> anchors = linksKept.get(outlink);
+                if (anchors.size() > 0) {
+                    linkMetadata.addValues(ANCHORS_KEY_NAME, anchors);
+                }
+            }
             collector.emit(com.digitalpebble.storm.crawler.Constants.StatusStreamName, tuple,
                     new Values(outlink, linkMetadata, Status.DISCOVERED));
         }
