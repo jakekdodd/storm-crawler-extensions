@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -249,9 +248,8 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         Map<String, List<String>> linksKept = new HashMap<String, List<String>>();
 
-        Iterator<String> linkIterator = slinks.keySet().iterator();
-        while (linkIterator.hasNext()) {
-            String targetURL = linkIterator.next();
+        for (Map.Entry<String, List<String>> linkEntry : slinks.entrySet()) {
+            String targetURL = linkEntry.getKey();
             // filter the urls
             if (urlFilters != null) {
                 targetURL = urlFilters.filter(sourceUrl, metadata, targetURL);
@@ -262,7 +260,7 @@ public class JSoupParserBolt extends BaseRichBolt {
             }
             // the link has survived the various filters
             if (targetURL != null) {
-                List<String> anchors = slinks.get(targetURL);
+                List<String> anchors = linkEntry.getValue();
                 linksKept.put(targetURL, anchors);
                 eventCounter.scope("outlink_kept").incr();
             }
