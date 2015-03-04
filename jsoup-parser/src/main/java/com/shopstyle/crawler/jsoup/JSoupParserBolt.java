@@ -106,7 +106,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         trackAnchors = ConfUtils.getBoolean(conf, "track.anchors", true);
 
-        metadataTransfer = new MetadataTransfer(conf);
+        metadataTransfer = MetadataTransfer.getInstance(conf);
     }
 
     @Override
@@ -268,7 +268,7 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         for (String outlink : linksKept.keySet()) {
             // configure which metadata gets inherited from parent
-            Metadata linkMetadata = metadataTransfer.getMetaForOutlink(url, metadata);
+            Metadata linkMetadata = metadataTransfer.getMetaForOutlink(outlink, url, metadata);
             // add the anchors to the metadata?
             if (trackAnchors) {
                 List<String> anchors = linksKept.get(outlink);
