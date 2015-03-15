@@ -1,32 +1,7 @@
-apply plugin: 'java'
-apply plugin: 'eclipse'
-apply plugin: 'maven-publish'
 
-sourceCompatibility = '1.7'
-targetCompatibility = '1.7'
-group = 'com.shopstyle.storm-crawler-extensions'
 version = '0.4-SNAPSHOT'
 
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
-
-configurations {
-    provided {
-        description = 'Dependencies solely needed at compile time'
-        transitive = false
-    }
-
-    compile {
-        extendsFrom provided
-    }
-}
-
 dependencies {
-    provided (
-        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.5-SNAPSHOT']
-    )
 
     compile (
         [group:'org.apache.any23',           name:'apache-any23-core',      version:'1.1',          transitive:false],
@@ -41,13 +16,6 @@ dependencies {
         [group:'net.sourceforge.nekohtml',   name:'nekohtml',               version:'1.9.19'],
         [group:'org.mockito',                name:'mockito-all',            version:'1.9.5']
     )
-}
-
-eclipse {
-    classpath {
-        // Add the 'provided' (aka compile-only) configuration into the Eclipse classpath
-        plusConfigurations += [ configurations.provided ]
-    }
 }
 
 task sourcesJar(type: Jar, dependsOn: compileJava) {

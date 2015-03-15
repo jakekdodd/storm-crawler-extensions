@@ -1,0 +1,46 @@
+allprojects {
+    repositories {
+        mavenCentral()
+        maven {
+            url "http://clojars.org/repo"
+        }
+        mavenLocal()
+    }
+
+    group = 'com.shopstyle.storm-crawler-extensions'
+}
+
+subprojects { subProject ->
+
+    apply plugin: 'java'
+    apply plugin: 'eclipse'
+    apply plugin: 'maven-publish'
+
+    sourceCompatibility = '1.7'
+    targetCompatibility = '1.7'
+
+    configurations {
+        provided {
+            description = 'Dependencies solely needed at compile time'
+            transitive = false
+        }
+
+        compile {
+            extendsFrom provided
+        }
+    }
+
+    dependencies {
+        provided (
+            [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.5-SNAPSHOT'],
+            [group:'org.apache.storm',           name:'storm-core',             version:'0.9.3']
+        )
+    }
+
+    eclipse {
+        classpath {
+            // Add the 'provided' (aka compile-only) configuration into the Eclipse classpath
+            plusConfigurations += [ configurations.provided ]
+        }
+    }
+}

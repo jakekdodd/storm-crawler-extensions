@@ -1,50 +1,12 @@
-apply plugin: 'java'
-apply plugin: 'eclipse'
-apply plugin: 'maven-publish'
-
-sourceCompatibility = '1.7'
-targetCompatibility = '1.7'
-group = 'com.shopstyle.storm-crawler-extensions'
 version = '0.3-SNAPSHOT'
 
-repositories {
-    mavenCentral()
-    maven {
-        url "http://clojars.org/repo"
-    }
-    mavenLocal()
-}
-
-configurations {
-    provided {
-        description = 'Dependencies solely needed at compile time'
-        transitive = false
-    }
-
-    compile {
-        extendsFrom provided
-    }
-}
-
 dependencies {
-    provided (
-        [group:'com.digitalpebble',          name:'storm-crawler-core',     version:'0.5-SNAPSHOT'],
-        [group:'org.apache.storm',           name:'storm-core',             version:'0.9.3']
-    )
-
     compile (
         [group:'org.jsoup',                  name:'jsoup',                  version:'1.8.1'],
         [group:'org.slf4j',                  name:'slf4j-api',              version:'1.7.7'],
         [group:'com.ibm.icu',                name:'icu4j',                  version:'54.1.1'],
         [group:'org.apache.commons',         name:'commons-lang3',          version:'3.3.2']
     )
-}
-
-eclipse {
-    classpath {
-        // Add the 'provided' (aka compile-only) configuration into the Eclipse classpath
-        plusConfigurations += [ configurations.provided ]
-    }
 }
 
 task sourcesJar(type: Jar, dependsOn: compileJava) {
