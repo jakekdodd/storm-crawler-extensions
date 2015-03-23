@@ -41,6 +41,7 @@ publishing {
                    println groupId;
                    switch (groupId) {
                        case 'com.digitalpebble':
+                       case 'org.apache.storm':
                            it.scope.get(0).value = 'provided';
                            break;
                        case 'org.apache.any23':
