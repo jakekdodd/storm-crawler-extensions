@@ -21,6 +21,7 @@ import backtype.storm.tuple.Values;
 import com.digitalpebble.storm.crawler.Constants;
 import com.digitalpebble.storm.crawler.Metadata;
 import com.digitalpebble.storm.crawler.filtering.URLFilters;
+import com.digitalpebble.storm.crawler.parse.Outlink;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
 import com.digitalpebble.storm.crawler.parse.ParseFilters;
 import com.digitalpebble.storm.crawler.persistence.Status;
@@ -44,7 +45,10 @@ import static com.digitalpebble.storm.crawler.Constants.StatusStreamName;
 /**
  * Simple parser for HTML documents which calls ParseFilters to add metadata. Does not handle
  * outlinks for now.
+ * 
+ * Please use com.digitalpebble.storm.crawler.bolt.JSoupParserBolt instead
  */
+@Deprecated
 @SuppressWarnings("serial")
 public class JSoupParserBolt extends BaseRichBolt {
 
@@ -168,9 +172,11 @@ public class JSoupParserBolt extends BaseRichBolt {
 
         LOG.info("Parsed {} in {} msec", url, duration);
 
+        List<Outlink> outlinks = toOutlinks(url, metadata, slinks);
+
         // apply the parse filters if any
         try {
-            parseFilters.filter(url, content, fragment, metadata);
+            parseFilters.filter(url, content, fragment, metadata, outlinks);
         } catch (RuntimeException e) {
             String errorMessage = "Exception while running parse filters on " + url + ": " + e;
             LOG.error(errorMessage);
@@ -185,8 +191,13 @@ public class JSoupParserBolt extends BaseRichBolt {
             return;
         }
 
-        if (emitOutlinks && !slinks.isEmpty()) {
-            emitOutlinks(tuple, url, metadata, slinks);
+        if (emitOutlinks) {
+            for (Outlink outlink : outlinks) {
+                collector
+                        .emit(StatusStreamName, tuple,
+                                new Values(outlink.getTargetURL(), outlink.getMetadata(),
+                                        Status.DISCOVERED));
+            }
         }
 
         collector.emit(tuple, new Values(url, content, metadata, text.trim()));
@@ -234,16 +245,17 @@ public class JSoupParserBolt extends BaseRichBolt {
         return charset;
     }
 
-    private void emitOutlinks(Tuple tuple, String url, Metadata metadata, Map<String, List<String>> slinks) {
-        // get the outlinks and convert them to strings (for now)
+    private List<Outlink> toOutlinks(String url, Metadata metadata, Map<String, List<String>> slinks) {
+        List<Outlink> outlinks = new LinkedList<Outlink>();
         URL sourceUrl;
         try {
             sourceUrl = new URL(url);
         } catch (MalformedURLException e) {
-            // we would have known by now as previous components check whether the URL is valid
+            // we would have known by now as previous components check whether
+            // the URL is valid
             LOG.error("MalformedURLException on {}", url);
             eventCounter.scope("error_invalid_source_url").incrBy(1);
-            return;
+            return outlinks;
         }
 
         Map<String, List<String>> linksKept = new HashMap<String, List<String>>();
@@ -269,15 +281,19 @@ public class JSoupParserBolt extends BaseRichBolt {
         for (String outlink : linksKept.keySet()) {
             // configure which metadata gets inherited from parent
             Metadata linkMetadata = metadataTransfer.getMetaForOutlink(outlink, url, metadata);
+            Outlink ol = new Outlink(outlink);
             // add the anchors to the metadata?
             if (trackAnchors) {
                 List<String> anchors = linksKept.get(outlink);
                 if (anchors.size() > 0) {
                     linkMetadata.addValues(ANCHORS_KEY_NAME, anchors);
+                    // sets the first anchor
+                    ol.setAnchor(anchors.get(0));
                 }
             }
-            collector.emit(StatusStreamName, tuple, new Values(outlink, linkMetadata,
-                    Status.DISCOVERED));
+            ol.setMetadata(linkMetadata);
+            outlinks.add(ol);
         }
+        return outlinks;
     }
 }

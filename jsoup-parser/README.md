@@ -1,6 +1,8 @@
 JSoup HTML Parser
 ========================
 
+This project is deprecated. Please use https://github.com/DigitalPebble/storm-crawler instead.
+
 This is a Bolt similar to the ParserBolt. The difference being that 
 it uses JSoup to do the HTML Parsing instead of Tika.
 

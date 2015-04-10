@@ -20,6 +20,7 @@ import org.w3c.dom.Node;
 
 import com.digitalpebble.storm.crawler.Metadata;
 import com.digitalpebble.storm.crawler.parse.ParseFilter;
+import com.digitalpebble.storm.crawler.parse.Outlink;
 import com.fasterxml.jackson.databind.JsonNode;
 
 public class MicrodataFilter implements ParseFilter {
@@ -41,7 +42,8 @@ public class MicrodataFilter implements ParseFilter {
     }
 
     @Override
-    public void filter(String URL, byte[] content, DocumentFragment doc, Metadata metadata) {
+    public void filter(String URL, byte[] content, DocumentFragment doc, Metadata metadata,
+            List<Outlink> outLinks) {
         MicrodataParserReport report;
         try {
             report = getMicrodata(doc);

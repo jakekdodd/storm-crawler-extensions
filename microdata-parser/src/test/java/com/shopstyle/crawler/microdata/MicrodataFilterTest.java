@@ -89,7 +89,7 @@ public class MicrodataFilterTest {
         DocumentFragment fragment = parseHtmlContent(content);
 
         Metadata metadata = new Metadata();
-        filter.filter(url, content, fragment, metadata);
+        filter.filter(url, content, fragment, metadata, null);
         return metadata;
     }
 
