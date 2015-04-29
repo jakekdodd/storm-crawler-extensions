@@ -47,7 +47,7 @@ public class MicrodataFilter implements ParseFilter {
         MicrodataParserReport report;
         try {
             report = getMicrodata(doc);
-        } catch (MicrodataParserException e) {
+        } catch (MicrodataParserException|NullPointerException e) {
             log.error("Error parsing microdata {}", URL, e);
             return;
         }
